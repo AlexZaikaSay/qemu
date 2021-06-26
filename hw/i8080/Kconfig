@@ -1,0 +1,2 @@
+config I8080
+    bool
