@@ -1,2 +1,6 @@
 config I8080
     bool
+
+config PROFBOARD
+    bool
+    select I8080
