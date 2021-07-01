@@ -23,6 +23,7 @@
 #include "sysemu/sysemu.h"
 #include "exec/address-spaces.h"
 #include "qom/object.h"
+#include "target/i8080/cpu.h"
 
 
 #define TYPE_PROFBOARD_MACHINE MACHINE_TYPE_NAME("proficient")

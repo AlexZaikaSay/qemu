@@ -22,3 +22,12 @@
 #include "exec/gdbstub.h"
 
 
+int i8080_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
+{
+    return 0;
+}
+
+int i8080_cpu_gdb_write_register(CPUState *cs, uint8_t *mem_buf, int n)
+{
+    return 0;
+}

@@ -15,3 +15,9 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef I8080_HELPER_H
+#define I8080_HELPER_H 1
+
+
+
+#endif /* I8080_HELPER_H */
