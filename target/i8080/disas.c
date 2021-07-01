@@ -27,30 +27,35 @@ typedef void (*print_func)(uint8_t *, disassemble_info *, const char *);
 static void print_nn(uint8_t *buf, disassemble_info *info, const char *txt)
 {
     int nn = *(uint16_t*)(buf + 1);
-    info->fprintf_func (info->stream, txt, nn);
+    info->fprintf_func(info->stream, txt, nn);
 }
 
 static void print_n(uint8_t *buf, disassemble_info *info, const char *txt)
 {
     int nn = *(buf + 1);
-    info->fprintf_func (info->stream, txt, nn);
+    info->fprintf_func(info->stream, txt, nn);
+}
+
+static void print(uint8_t *buf, disassemble_info *info, const char *txt)
+{
+    info->fprintf_func(info->stream, txt, 0);
 }
 
 static uint32_t sizes[256] = 
 {
-    0, 3, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0,
-    0, 3, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0,
-    0, 3, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0,
-    0, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0,
+    0, 3, 1, 1, 0, 0, 2, 0, 0, 0, 1, 1, 0, 0, 2, 0,
+    0, 3, 1, 1, 0, 0, 2, 0, 0, 0, 1, 1, 0, 0, 2, 0,
+    0, 3, 0, 1, 0, 0, 2, 0, 0, 0, 0, 1, 0, 0, 2, 0,
+    0, 3, 3, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 2, 0,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -58,19 +63,19 @@ static uint32_t sizes[256] =
 
 static const char * inst_str[256] = 
 { 
-    0, "ld bc,0x%04x", 0, 0, 0, 0, "ld b,0x%02x", 0, 0, 0, 0, 0, 0, 0, "ld c,0x%02x", 0,
-    0, "ld de,0x%04x", 0, 0, 0, 0, "ld d,0x%02x", 0, 0, 0, 0, 0, 0, 0, "ld e,0x%02x", 0,
-    0, "ld hl,0x%04x", 0, 0, 0, 0, "ld h,0x%02x", 0, 0, 0, 0, 0, 0, 0, "ld l,0x%02x", 0,
-    0, "ld sp,0x%04x", "st (0x%04x),a", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, "ld a,0x%02x", 0,
+    0, "mov bc,0x%04x", "mov (bc),a", "inc bc", 0, 0, "mov b,0x%02x", 0, 0, 0, "mov a,(bc)", "dec bc", 0, 0, "mov c,0x%02x", 0,
+    0, "mov de,0x%04x", "mov (de),a", "inc de", 0, 0, "mov d,0x%02x", 0, 0, 0, "mov a,(de)", "dec de", 0, 0, "mov e,0x%02x", 0,
+    0, "mov hl,0x%04x", 0, "inc hl", 0, 0, "mov h,0x%02x", 0, 0, 0, 0, "dec hl", 0, 0, "mov l,0x%02x", 0,
+    0, "mov sp,0x%04x", "mov (0x%04x),a", "inc sp", 0, 0, 0, 0, 0, 0, 0, "dec sp", 0, 0, "mov a,0x%02x", 0,
+    "mov b,b", "mov b,c", "mov b,d", "mov b,e", "mov b,h", "mov b,l", "mov b,(hl)", "mov b,a", "mov c,b", "mov c,c", "mov c,d", "mov c,e", "mov c,h", "mov c,l", "mov c,(hl)", "mov c,a",
+    "mov d,b", "mov d,c", "mov d,d", "mov d,e", "mov d,h", "mov d,l", "mov d,(hl)", "mov d,a", "mov e,b", "mov e,c", "mov e,d", "mov e,e", "mov e,h", "mov e,l", "mov e,(hl)", "mov e,a",
+    "mov h,b", "mov h,c", "mov h,d", "mov h,e", "mov h,h", "mov h,l", "mov h,(hl)", "mov h,a", "mov l,b", "mov l,c", "mov l,d", "mov l,e", "mov l,h", "mov l,l", "mov l,(hl)", "mov l,a",
+    "mov (hl),b", "mov (hl),c", "mov (hl),d", "mov (hl),e", "mov (hl),h", "mov (hl),l", "mov (hl),(hl)", "mov (hl),a", "mov a,b", "mov a,c", "mov a,d", "mov a,e", "mov a,h", "mov a,l", "mov a,(hl)", "mov a,a",
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, "jmp 0x%04x", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, "jmp 0x%04x", 0, 0, 0, 0, 0, 0, 0, 0, 0, "call 0x%04x", 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -78,19 +83,19 @@ static const char * inst_str[256] =
 
 static print_func print_funcs[256] = 
 { 
-    0, print_nn, 0, 0, 0, 0, 0, print_n, 0, 0, 0, 0, 0, 0, print_n, 0,
-    0, print_nn, 0, 0, 0, 0, 0, print_n, 0, 0, 0, 0, 0, 0, print_n, 0,
-    0, print_nn, 0, 0, 0, 0, 0, print_n, 0, 0, 0, 0, 0, 0, print_n, 0,
-    0, print_nn, print_nn, 0, 0, 0, 0, print_n, 0, 0, 0, 0, 0, 0, print_n, 0,
+    0, print_nn, print, print, 0, 0, print_n, 0, 0, 0, print, 0, 0, 0, print_n, 0,
+    0, print_nn, print, print, 0, 0, print_n, 0, 0, 0, print, 0, 0, 0, print_n, 0,
+    0, print_nn, 0, print, 0, 0, 0, print_n, 0, 0, 0, 0, 0, 0, print_n, 0,
+    0, print_nn, print_nn, print, 0, 0, 0, print_n, 0, 0, 0, 0, 0, 0, print_n, 0,
+    print, print, print, print, print, print, print, print, print, print, print, print, print, print, print, print,
+    print, print, print, print, print, print, print, print, print, print, print, print, print, print, print, print,
+    print, print, print, print, print, print, print, print, print, print, print, print, print, print, print, print,
+    print, print, print, print, print, print, print, print, print, print, print, print, print, print, print, print,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, print_nn, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, print_nn, 0, 0, 0, 0, 0, 0, 0, 0, 0, print_nn, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
