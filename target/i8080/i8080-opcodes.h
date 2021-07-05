@@ -17,7 +17,8 @@
 
 #ifndef TARGET_I8080_I8080_OPCODES_H
 #define TARGET_I8080_I8080_OPCODES_H
-
+ 
+#define MASK_COND(opcode)                (0x7 & opcode)
 #define MASK_8_REG(opcode)               (0x7 & opcode)
 #define MASK_16_REG(opcode)              (0x3 & opcode)
 #define MASK_IS_UNCOND(opcode)           (0x1 & opcode)
@@ -25,6 +26,7 @@
 #define MASK_LO_8_REG(regnum)            (0x1 & regnum)
 #define MASK_MOV_IMM_8_REG(opcode)       (MASK_8_REG(opcode >> 3))
 #define MASK_OP_16_REG(opcode)           (MASK_16_REG(opcode >> 4))
+#define MASK_OP_COND(opcode)             (MASK_COND(opcode >> 2))
 
 enum {
     OPC_MOV_BC_REF_A                                    = 0x02,
@@ -115,8 +117,34 @@ enum {
     OPC_MOV_A_HL_REF                                    = 0x7e,
     OPC_MOV_A_A                                         = 0x7f,    
     OPC_ST_A                                            = 0x32,
-    OPC_JMP_IMM                                         = 0xc3,
     OPC_CALL_IMM                                        = 0xcd,
+    OPC_CMP_B                                           = 0xb8,
+    OPC_CMP_C                                           = 0xb9,
+    OPC_CMP_D                                           = 0xba,
+    OPC_CMP_E                                           = 0xbb,
+    OPC_CMP_H                                           = 0xbc,
+    OPC_CMP_L                                           = 0xbd,
+    OPC_CMP_HL_REH                                      = 0xbe,
+    OPC_CMP_A                                           = 0xbf,
+    OPC_RET_NZ                                          = 0xc0,
+    OPC_RET_Z                                           = 0xc8,
+    OPC_RET_NC                                          = 0xd0,
+    OPC_RET_C                                           = 0xd8,
+    OPC_RET_PO                                          = 0xe0,
+    OPC_RET_PE                                          = 0xe8,
+    OPC_RET_P                                           = 0xf0,
+    OPC_RET_M                                           = 0xf8,
+    OPC_RET                                             = 0xc9,
+    OPC_JMP_IMM                                         = 0xc3,
+    OPC_JMP_IMM_NZ                                      = 0xc2,
+    OPC_JMP_IMM_Z                                       = 0xca,
+    OPC_JMP_IMM_NC                                      = 0xd2,
+    OPC_JMP_IMM_C                                       = 0xda,
+    OPC_JMP_IMM_PO                                      = 0xe2,
+    OPC_JMP_IMM_PE                                      = 0xea,
+    OPC_JMP_IMM_P                                       = 0xf2,
+    OPC_JMP_IMM_M                                       = 0xfa,
+    
 };
 
 

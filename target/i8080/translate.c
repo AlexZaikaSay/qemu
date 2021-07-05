@@ -69,6 +69,8 @@ static TCGv cpu_PC;
 static TCGv cpu_A;
 static TCGv cpu_REGS[4];
 
+static TCGv cpu_FLAGS;
+
 static const char *regnames[] = {
       "bc"  , "de"  , "hl"  , "sp",
     };
@@ -82,9 +84,15 @@ void i8080_cpu_dump_state(CPUState *cs, FILE *f, int flags)
     qemu_fprintf(f, "pc: 0x%04x\n", env->pc);
     qemu_fprintf(f, " a: 0x%02x\n", env->a);
     for (i = 0 ; i < REG_MAX ; i++) 
-        qemu_fprintf(f, "%s: 0x%04x, ", regnames[i], env->regs[i]);
+        qemu_fprintf(f, "%s: 0x%04x\n", regnames[i], env->regs[i]);
     
-    qemu_fprintf(f, "\n"); 
+    qemu_fprintf(f, "flags: s: %d, z: %d, c: %d, p: %d, a: %d\n", 
+        GET_S_FLAG(env->flags),
+        GET_Z_FLAG(env->flags),
+        GET_C_FLAG(env->flags),
+        GET_P_FLAG(env->flags),
+        GET_A_FLAG(env->flags));
+
 }
 
 static void i8080_tr_init_disas_context(DisasContextBase *dcbase,
@@ -140,6 +148,36 @@ static inline void gen_load_8_val(uint32_t regnum, TCGv dest)
         tcg_gen_extract_tl(dest, src, 8, 8);
 }
 
+static void gen_cond(DisasContext *ctx, uint32_t cond, TCGLabel *label)
+{
+    switch(cond) {
+    case COND_NZ:
+        tcg_gen_brcondi_i32(TCG_COND_NE, cpu_FLAGS, Z_FLAG, label);
+        break;
+    case COND_Z:
+        tcg_gen_brcondi_i32(TCG_COND_EQ, cpu_FLAGS, Z_FLAG, label);
+        break;
+    case COND_NC:
+        tcg_gen_brcondi_i32(TCG_COND_NE, cpu_FLAGS, C_FLAG, label);
+        break;
+    case COND_C:
+        tcg_gen_brcondi_i32(TCG_COND_EQ, cpu_FLAGS, C_FLAG, label);
+        break;
+    case COND_PO:
+        tcg_gen_brcondi_i32(TCG_COND_NE, cpu_FLAGS, P_FLAG, label);
+        break;
+    case COND_PE:
+        tcg_gen_brcondi_i32(TCG_COND_EQ, cpu_FLAGS, P_FLAG, label);
+        break;
+    case COND_P:
+        tcg_gen_brcondi_i32(TCG_COND_NE, cpu_FLAGS, S_FLAG, label);
+        break;
+    case COND_M:
+        tcg_gen_brcondi_i32(TCG_COND_NE, cpu_FLAGS, S_FLAG, label);
+        break;
+    }
+}
+
 static inline bool use_goto_tb(DisasContext *ctx, target_ulong dest)
 {
     if (unlikely(ctx->base.singlestep_enabled)) {
@@ -152,6 +190,12 @@ static inline void gen_push(TCGv val)
 {
     tcg_gen_subi_tl(cpu_REGS[REG_SP], cpu_REGS[REG_SP], 2);
     tcg_gen_qemu_st16(val, cpu_REGS[REG_SP], 0);
+}
+
+static inline void gen_pop(TCGv val)
+{
+    tcg_gen_qemu_ld16u(val, cpu_REGS[REG_SP], 0);
+    tcg_gen_addi_tl(cpu_REGS[REG_SP], cpu_REGS[REG_SP], 2);
 }
 
 static inline void gen_goto_tb(DisasContext *ctx, int tb_num, target_ulong dest)
@@ -180,11 +224,21 @@ static void gen_call(DisasContext *ctx, uint32_t abs)
     gen_goto_tb(ctx, 0, abs);
 }
 
+static void gen_ret(DisasContext *ctx)
+{
+    gen_pop(cpu_PC);
+    tcg_gen_exit_tb(NULL, 0);
+}
+
 static void gen_jcc(DisasContext *ctx, uint32_t abs)
 {
-    // TODO: not implemented
-    qemu_log("gen_jcc not implemented\n");
-    abort();
+    uint32_t cond = MASK_OP_COND(ctx->opcode);
+    TCGLabel *label = gen_new_label();
+    
+    gen_cond(ctx, cond, label);
+    gen_goto_tb(ctx, 0, ctx->pc_succ_insn);
+    gen_set_label(label);
+    gen_goto_tb(ctx, 1, abs);
 }
 
 static void gen_ccc(DisasContext *ctx, uint32_t abs)
@@ -192,6 +246,18 @@ static void gen_ccc(DisasContext *ctx, uint32_t abs)
     // TODO: not implemented
     qemu_log("gen_ccc not implemented\n");
     abort();
+}
+
+static void gen_rcc(DisasContext *ctx)
+{
+    uint32_t cond = MASK_OP_COND(ctx->opcode);
+    TCGLabel *label = gen_new_label();
+    
+    gen_cond(ctx, cond, label);
+    gen_goto_tb(ctx, 0, ctx->pc_succ_insn);
+    gen_set_label(label);
+    gen_pop(cpu_PC);
+    tcg_gen_exit_tb(NULL, 0);
 }
 
 static void decode_jmp(DisasContext *ctx, uint32_t abs)
@@ -209,6 +275,15 @@ static void decode_call(DisasContext *ctx, uint32_t abs)
         gen_call(ctx, abs);
     else
         gen_ccc(ctx, abs);
+    ctx->base.is_jmp = DISAS_NORETURN;
+}
+
+static void decode_ret(DisasContext *ctx)
+{
+    if (MASK_IS_UNCOND(ctx->opcode)) 
+        gen_ret(ctx);
+    else
+        gen_rcc(ctx);
     ctx->base.is_jmp = DISAS_NORETURN;
 }
 
@@ -289,6 +364,42 @@ static void decode_st_a(DisasContext *ctx, uint32_t addr)
 {
     tcg_gen_movi_tl(ctx->T0, addr);
     tcg_gen_qemu_st8(cpu_A, ctx->T0, 0);
+}
+
+static void gen_sub_flags(TCGv dest, TCGv arg1, TCGv arg2)
+{
+    TCGv flag = tcg_temp_new();
+    tcg_gen_setcond_tl(TCG_COND_EQ, flag, arg1, arg2);
+    tcg_gen_deposit_tl(cpu_FLAGS, cpu_FLAGS, flag, Z_FLAG, 1);
+    tcg_gen_setcond_tl(TCG_COND_LT, flag, arg1, arg2);
+    tcg_gen_deposit_tl(cpu_FLAGS, cpu_FLAGS, flag, S_FLAG, 1);
+    tcg_gen_extract_tl(flag, dest, 0, 1);
+    tcg_gen_deposit_tl(cpu_FLAGS, cpu_FLAGS, flag, P_FLAG, 1);
+    tcg_gen_extract_tl(flag, dest, 9, 1);
+    tcg_gen_deposit_tl(cpu_FLAGS, cpu_FLAGS, flag, C_FLAG, 1);
+    
+    // /* Auxiliary Carry Bit */
+    // TCGv arg1_4bit = tcg_temp_new();
+    // TCGv arg2_4bit = tcg_temp_new();
+    // tcg_gen_extract_tl(arg1, arg1_4bit, 0, 4);
+    // tcg_gen_extract_tl(arg2, arg2_4bit, 0, 4);
+    // tcg_gen_sub_tl(arg1_4bit, arg1_4bit, arg2_4bit);
+    // tcg_gen_extract_tl(flag, arg1_4bit, 5, 1);
+    // tcg_gen_deposit_tl(cpu_FLAGS, cpu_FLAGS, flag, A_FLAG, 1);
+    // tcg_temp_free(arg1_4bit);
+    // tcg_temp_free(arg2_4bit);
+
+    tcg_temp_free(flag);
+}
+
+static void decode_cmp(DisasContext *ctx)
+{
+    uint32_t reg = MASK_8_REG(ctx->opcode);
+    gen_load_temp(ctx, reg);
+    TCGv tmp = tcg_temp_new();
+    tcg_gen_sub_tl(tmp, ctx->T0, cpu_A);
+    gen_sub_flags(tmp, ctx->T0, cpu_A);
+    tcg_temp_free(tmp);
 }
 
 static void translate_1_byte_insn(DisasContext *ctx, CPUI8080State *env)
@@ -415,7 +526,15 @@ static void translate_1_byte_insn(DisasContext *ctx, CPUI8080State *env)
         ctx->pc_succ_insn = ctx->base.pc_next + 3;
         decode_st_a(ctx, insn);
         break;
-    case OPC_JMP_IMM:      
+    case OPC_JMP_IMM:  
+    case OPC_JMP_IMM_NZ:
+    case OPC_JMP_IMM_Z:
+    case OPC_JMP_IMM_NC:
+    case OPC_JMP_IMM_C:
+    case OPC_JMP_IMM_PO:
+    case OPC_JMP_IMM_PE:
+    case OPC_JMP_IMM_P:
+    case OPC_JMP_IMM_M: 
         insn = cpu_lduw_code(env, ctx->base.pc_next + 1);
         ctx->pc_succ_insn = ctx->base.pc_next + 3;
         decode_jmp(ctx, insn);
@@ -425,8 +544,32 @@ static void translate_1_byte_insn(DisasContext *ctx, CPUI8080State *env)
         ctx->pc_succ_insn = ctx->base.pc_next + 3;
         decode_call(ctx, insn);
         break;
+    case OPC_RET_NZ:
+    case OPC_RET_Z:
+    case OPC_RET_NC:
+    case OPC_RET_C:
+    case OPC_RET_PO:
+    case OPC_RET_PE:
+    case OPC_RET_P:
+    case OPC_RET_M:
+    case OPC_RET:
+        ctx->pc_succ_insn = ctx->base.pc_next + 1;
+        decode_ret(ctx);
+        break;
+    case OPC_CMP_B:
+    case OPC_CMP_C:
+    case OPC_CMP_D:
+    case OPC_CMP_E:
+    case OPC_CMP_H:
+    case OPC_CMP_L:
+    case OPC_CMP_HL_REH:
+    case OPC_CMP_A:
+        ctx->pc_succ_insn = ctx->base.pc_next + 1;
+        decode_cmp(ctx);
+        break;
     default:
-        qemu_log("undefined instruction 0x%2x, not implemented\n", ctx->opcode);
+        qemu_log("undefined instruction pc = 0x%04x, op code = 0x%02x, "
+            "not implemented\n", ctx->base.pc_next, ctx->opcode);
         abort();
     }
 }
@@ -482,14 +625,16 @@ void i8080_tcg_init(void)
 {
     int i = 0;
     /* pc init */
-    cpu_PC = tcg_global_mem_new(cpu_env,
-                          offsetof(CPUI8080State, pc), "pc");
+    cpu_PC = tcg_global_mem_new(cpu_env, offsetof(CPUI8080State, pc), "pc");
 
-    cpu_A = tcg_global_mem_new(cpu_env,
-                          offsetof(CPUI8080State, a), "a");
-    /* reg init */
+    cpu_A = tcg_global_mem_new(cpu_env, offsetof(CPUI8080State, a), "a");
+    /* regs init */
     for (i = 0 ; i < REG_MAX ; i++) 
         cpu_REGS[i] = tcg_global_mem_new(cpu_env,
                                           offsetof(CPUI8080State, regs[i]),
                                           regnames[i]);
+
+    /* flags init */
+    cpu_FLAGS = tcg_global_mem_new(cpu_env, offsetof(CPUI8080State, flags), "flags");
+
 }
