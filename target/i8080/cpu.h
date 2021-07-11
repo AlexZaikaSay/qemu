@@ -34,7 +34,26 @@ bool i8080_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
 
 typedef struct i8080_def_t i8080_def_t;
 
-#define CPU_NB_REGS 4
+enum {
+    /* 16-bit registers */
+    REG_BC  = 0x00,
+    REG_DE  = 0x01,
+    REG_HL  = 0x02,
+    REG_SP  = 0x03,
+    
+    /* 8-bit registers */
+    REG_B   = 0x00,
+    REG_C   = 0x01,
+    REG_D   = 0x02,
+    REG_E   = 0x03,
+    REG_H   = 0x04,
+    REG_L   = 0x05,
+    REG_A   = 0x07,   
+    
+    MEM_REF = 0x06,
+
+    REG_MAX = 4,
+};
 
 enum {
     C_FLAG      = 0,
@@ -52,9 +71,8 @@ enum {
     DEF_FLAGS   = 0x02, 
 };
 
-#define MASK_OP_COND(opcode)             (MASK_COND(opcode >> 2))
-
-#define GET_FLAG(flags, off)             ((flags >> off) & 0x01)
+#define MASK_OP_COND(opcode)                 (MASK_COND(opcode >> 2))
+#define GET_FLAG(flags, off)                 ((flags >> off) & 0x01)
 
 #define GET_C_FLAG(flags)                    GET_FLAG(flags, C_FLAG)
 #define GET_P_FLAG(flags)                    GET_FLAG(flags, P_FLAG)
@@ -73,12 +91,23 @@ enum {
     COND_M                                           = 0x07,
 };
 
+enum {
+    ARITH_OP_ADD                                     = 0x00,
+    ARITH_OP_ADC                                     = 0x01,
+    ARITH_OP_SUB                                     = 0x02,
+    ARITH_OP_SBC                                     = 0x03,
+    ARITH_OP_AND                                     = 0x04,
+    ARITH_OP_XOR                                     = 0x05,
+    ARITH_OP_OR                                      = 0x06,
+    ARITH_OP_CMP                                     = 0x07,
+};
+
 typedef struct CPUI8080State CPUI8080State;
 struct CPUI8080State {
     
     /* i8080 registers */
     target_ulong a;
-    target_ulong regs[CPU_NB_REGS];
+    target_ulong regs[REG_MAX];
     target_ulong pc;
 
     /* i8080 flags */

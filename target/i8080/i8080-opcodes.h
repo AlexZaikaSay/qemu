@@ -20,6 +20,7 @@
  
 #define MASK_COND(opcode)                (0x7 & opcode)
 #define MASK_8_REG(opcode)               (0x7 & opcode)
+#define MASK_ARITH(opcode)               (0x7 & opcode)
 #define MASK_16_REG(opcode)              (0x3 & opcode)
 #define MASK_IS_UNCOND(opcode)           (0x1 & opcode)
 #define MASK_REG_PAIR(regnum)            (0x3 & (regnum >> 1))
@@ -27,8 +28,29 @@
 #define MASK_MOV_IMM_8_REG(opcode)       (MASK_8_REG(opcode >> 3))
 #define MASK_OP_16_REG(opcode)           (MASK_16_REG(opcode >> 4))
 #define MASK_OP_COND(opcode)             (MASK_COND(opcode >> 2))
+#define MASK_OP_ARITH(opcode)            (MASK_ARITH(opcode >> 3))
 
 enum {
+    OPC_INC_B                                           = 0x04,
+    OPC_INC_C                                           = 0x0c,
+    OPC_INC_D                                           = 0x14,
+    OPC_INC_E                                           = 0x1c,
+    OPC_INC_H                                           = 0x24,
+    OPC_INC_L                                           = 0x2c,
+    OPC_INC_HL_REF                                      = 0x34,
+    OPC_INC_A                                           = 0x3c,
+    OPC_DEC_B                                           = 0x05,
+    OPC_DEC_C                                           = 0x0d,
+    OPC_DEC_D                                           = 0x15,
+    OPC_DEC_E                                           = 0x1d,
+    OPC_DEC_H                                           = 0x25,
+    OPC_DEC_L                                           = 0x2d,
+    OPC_DEC_HL_REF                                      = 0x35,
+    OPC_DEC_A                                           = 0x3d,
+    OPC_ROL                                             = 0x07,
+    OPC_ROR                                             = 0x0f,
+    OPC_RLC                                             = 0x17,
+    OPC_RRC                                             = 0x1f,
     OPC_MOV_BC_REF_A                                    = 0x02,
     OPC_MOV_DE_REF_A                                    = 0x12,
     OPC_MOV_A_BC_REF                                    = 0x0a,
@@ -51,6 +73,7 @@ enum {
     OPC_MOV_E_IMM                                       = 0x1e,
     OPC_MOV_H_IMM                                       = 0x26,
     OPC_MOV_L_IMM                                       = 0x2e,
+    OPC_MOV_HL_REF_IMM                                  = 0x36,
     OPC_MOV_A_IMM                                       = 0x3e,
     OPC_MOV_B_B                                         = 0x40,
     OPC_MOV_B_C                                         = 0x41,
@@ -116,7 +139,10 @@ enum {
     OPC_MOV_A_L                                         = 0x7d,
     OPC_MOV_A_HL_REF                                    = 0x7e,
     OPC_MOV_A_A                                         = 0x7f,    
+    OPC_ST_HL                                           = 0x22,
+    OPC_LD_HL                                           = 0x2a,
     OPC_ST_A                                            = 0x32,
+    OPC_LD_A                                            = 0x3a,
     OPC_CALL_IMM                                        = 0xcd,
     OPC_CMP_B                                           = 0xb8,
     OPC_CMP_C                                           = 0xb9,
@@ -126,6 +152,14 @@ enum {
     OPC_CMP_L                                           = 0xbd,
     OPC_CMP_HL_REH                                      = 0xbe,
     OPC_CMP_A                                           = 0xbf,
+    OPC_ADD_IMM                                         = 0xc6,
+    OPC_ADC_IMM                                         = 0xce,
+    OPC_SUB_IMM                                         = 0xd6,
+    OPC_SBC_IMM                                         = 0xde,
+    OPC_AND_IMM                                         = 0xe6,
+    OPC_XOR_IMM                                         = 0xee,
+    OPC_OR_IMM                                          = 0xf6,
+    OPC_CMP_IMM                                         = 0xfe,
     OPC_RET_NZ                                          = 0xc0,
     OPC_RET_Z                                           = 0xc8,
     OPC_RET_NC                                          = 0xd0,
@@ -144,7 +178,11 @@ enum {
     OPC_JMP_IMM_PE                                      = 0xea,
     OPC_JMP_IMM_P                                       = 0xf2,
     OPC_JMP_IMM_M                                       = 0xfa,
-    
+    OPC_JMP_HL_REF                                      = 0xe9,
+    OPC_PUSH_BC                                         = 0xc5,
+    OPC_PUSH_DE                                         = 0xd5,
+    OPC_PUSH_HL                                         = 0xe5,
+    OPC_PUSH_A_FLAGS                                    = 0xf5,
 };
 
 

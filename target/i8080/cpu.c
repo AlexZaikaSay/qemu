@@ -52,8 +52,16 @@ static void i8080_cpu_synchronize_from_tb(CPUState *cs,
 
 static void i8080_cpu_state_reset(CPUI8080State *env)
 {
+    int i;
+    
     /* Reset Regs to Default Value */
+    env->a = 0x00;
+    for (i = 0 ; i < REG_MAX ; i++) 
+        env->regs[i] = 0x0000;
+
     env->pc = 0xc000;
+    env->flags = DEF_FLAGS;
+
 }
 
 static void i8080_cpu_reset(DeviceState *dev)
