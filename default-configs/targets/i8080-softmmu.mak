@@ -1,1 +1,3 @@
 TARGET_ARCH=i8080
+TARGET_XML_FILES= gdb-xml/i8080.xml
+

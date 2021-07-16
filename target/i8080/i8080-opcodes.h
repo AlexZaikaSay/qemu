@@ -31,6 +31,7 @@
 #define MASK_OP_ARITH(opcode)            (MASK_ARITH(opcode >> 3))
 
 enum {
+    OPC_NOT_A                                           = 0x2f,
     OPC_INC_B                                           = 0x04,
     OPC_INC_C                                           = 0x0c,
     OPC_INC_D                                           = 0x14,
@@ -143,6 +144,14 @@ enum {
     OPC_LD_HL                                           = 0x2a,
     OPC_ST_A                                            = 0x32,
     OPC_LD_A                                            = 0x3a,
+    OPC_CALL_NZ_IMM                                     = 0xc4,
+    OPC_CALL_Z_IMM                                      = 0xcc,
+    OPC_CALL_NC_IMM                                     = 0xd4,
+    OPC_CALL_C_IMM                                      = 0xdc,
+    OPC_CALL_PO_IMM                                     = 0xe4,
+    OPC_CALL_PE_IMM                                     = 0xec,
+    OPC_CALL_P_IMM                                      = 0xf4,
+    OPC_CALL_M_IMM                                      = 0xfc,
     OPC_CALL_IMM                                        = 0xcd,
     OPC_CMP_B                                           = 0xb8,
     OPC_CMP_C                                           = 0xb9,

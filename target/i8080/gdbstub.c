@@ -24,6 +24,23 @@
 
 int i8080_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
 {
+    I8080CPU *cpu = I8080_CPU(cs);
+    CPUI8080State *env = &cpu->env;
+    uint16_t af;
+
+    switch (n) {
+    case 0:
+        af = env->a & 0xff;
+        af <<= 8;
+        af |= env->flags & 0xff;
+        return gdb_get_reg16(mem_buf, af);
+    case 1 ... 4:
+        return gdb_get_reg16(mem_buf, env->regs[n - 1]);
+    case 5:
+        return gdb_get_reg16(mem_buf, env->pc);
+    default:
+        return gdb_get_reg16(mem_buf, 0);
+    }
     return 0;
 }
 

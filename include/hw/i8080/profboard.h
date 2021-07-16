@@ -32,6 +32,8 @@ typedef struct ProfBoardMachineClass ProfBoardMachineClass;
 DECLARE_OBJ_CHECKERS(ProfBoardMachineState, ProfBoardMachineClass,
                      PROFBOARD_MACHINE, TYPE_PROFBOARD_MACHINE)
 
+#define TYPE_PROFBOARD_VGA "prof_vga"
+OBJECT_DECLARE_SIMPLE_TYPE(ProfBoardVGAState, PROFBOARD_VGA)
 
 struct ProfBoardMachineState {
     MachineState parent;
@@ -42,4 +44,14 @@ struct ProfBoardMachineClass {
 
     const char *name;
     const char *desc;
+};
+
+struct ProfBoardVGAState {
+    /*< private >*/
+    SysBusDevice parent_obj;
+    /*< public >*/
+
+    MemoryRegion iomem;
+    QemuConsole *con;
+    uint8_t video_ram[0];
 };

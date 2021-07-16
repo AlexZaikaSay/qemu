@@ -17,7 +17,6 @@
 
 #include "qemu/osdep.h"
 
-#include "helper.h"
 #include "cpu.h"
 #include "exec/exec-all.h"
 #include "qemu/qemu-print.h"

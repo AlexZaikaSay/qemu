@@ -45,7 +45,7 @@ static uint32_t sizes[256] =
 {
     0, 3, 1, 1, 1, 1, 2, 1, 0, 0, 1, 1, 1, 1, 2, 1,
     0, 3, 1, 1, 1, 1, 2, 1, 0, 0, 1, 1, 1, 1, 2, 1,
-    0, 3, 3, 1, 1, 1, 2, 0, 0, 0, 3, 1, 1, 1, 2, 0,
+    0, 3, 3, 1, 1, 1, 2, 0, 0, 0, 3, 1, 1, 1, 2, 1,
     0, 3, 3, 1, 1, 1, 2, 0, 0, 0, 3, 1, 1, 1, 2, 0,
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
@@ -55,17 +55,17 @@ static uint32_t sizes[256] =
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 0, 3, 3, 0, 1, 2, 0, 1, 1, 3, 0, 0, 3, 2, 0,
-    1, 0, 3, 0, 0, 1, 2, 0, 1, 0, 3, 0, 0, 0, 2, 0,
-    1, 0, 3, 0, 0, 1, 2, 0, 1, 1, 3, 0, 0, 0, 2, 0,
-    1, 0, 3, 0, 0, 1, 2, 0, 1, 0, 3, 0, 0, 0, 2, 0,
+    1, 0, 3, 3, 3, 1, 2, 0, 1, 1, 3, 0, 3, 3, 2, 0,
+    1, 0, 3, 0, 3, 1, 2, 0, 1, 0, 3, 0, 3, 0, 2, 0,
+    1, 0, 3, 0, 3, 1, 2, 0, 1, 1, 3, 0, 3, 0, 2, 0,
+    1, 0, 3, 0, 3, 1, 2, 0, 1, 0, 3, 0, 3, 0, 2, 0,
 }; 
 
 static const char * inst_str[256] = 
 { 
     0, "mov bc,0x%04x", "mov (bc),a", "inc bc", "inc b", "dec b", "mov b,0x%02x", "rol", 0, 0, "mov a,(bc)", "dec bc", "inc c", "dec c", "mov c,0x%02x", "ror",
     0, "mov de,0x%04x", "mov (de),a", "inc de", "inc d", "dec d", "mov d,0x%02x", "rlc", 0, 0, "mov a,(de)", "dec de", "inc e", "dec e", "mov e,0x%02x", "rrc",
-    0, "mov hl,0x%04x", "mov (0x%04x),hl", "inc hl", "inc h", "dec h", "mov h,0x%02x", 0, 0, 0, "mov hl,(0x%04x)", "dec hl", "inc l", "dec l", "mov l,0x%02x", 0,
+    0, "mov hl,0x%04x", "mov (0x%04x),hl", "inc hl", "inc h", "dec h", "mov h,0x%02x", 0, 0, 0, "mov hl,(0x%04x)", "dec hl", "inc l", "dec l", "mov l,0x%02x", "not a",
     0, "mov sp,0x%04x", "mov (0x%04x),a", "inc sp", "inc (hl)", "dec (hl)", "mov (hl),0x%02x", 0, 0, 0, "mov a,(0x%04x)", "dec sp", "inc a", "dec a", "mov a,0x%02x", 0,
     "mov b,b", "mov b,c", "mov b,d", "mov b,e", "mov b,h", "mov b,l", "mov b,(hl)", "mov b,a", "mov c,b", "mov c,c", "mov c,d", "mov c,e", "mov c,h", "mov c,l", "mov c,(hl)", "mov c,a",
     "mov d,b", "mov d,c", "mov d,d", "mov d,e", "mov d,h", "mov d,l", "mov d,(hl)", "mov d,a", "mov e,b", "mov e,c", "mov e,d", "mov e,e", "mov e,h", "mov e,l", "mov e,(hl)", "mov e,a",
@@ -75,17 +75,17 @@ static const char * inst_str[256] =
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, "cmp b", "cmp c", "cmp d", "cmp e", "cmp h", "cmp l", "cmp (hl)", "cmp a",
-    "ret nz", 0, "jnz 0x%04x", "jmp 0x%04x", 0, "push bc", "add 0x%02x", 0, "ret z", "ret", "jz 0x%04x", 0, 0, "call 0x%04x", "adc 0x%02x", 0,
-    "ret nc", 0, "jnc 0x%04x", 0, 0, "push de", "sub 0x%02x", 0, "ret c", 0, "jc 0x%04x", 0, 0, 0, "sbc 0x%02x", 0,
-    "ret np", 0, "jnp 0x%04x", 0, 0, "push hl", "and 0x%02x", 0, "ret p", "jmp (hl)", "jp 0x%04x", 0, 0, 0, "xor 0x%02x", 0,
-    "ret ns", 0, "jns 0x%04x", 0, 0, "push af", "or 0x%02x", 0, "ret s", 0, "js 0x%04x", 0, 0, 0, "cmp 0x%02x", 0,
+    "ret nz", 0, "jnz 0x%04x", "jmp 0x%04x", "cnz 0x%04x", "push bc", "add 0x%02x", 0, "ret z", "ret", "jz 0x%04x", 0, "cz 0x%04x", "call 0x%04x", "adc 0x%02x", 0,
+    "ret nc", 0, "jnc 0x%04x", 0, "cnc 0x%04x", "push de", "sub 0x%02x", 0, "ret c", 0, "jc 0x%04x", 0, "cc 0x%04x", 0, "sbc 0x%02x", 0,
+    "ret np", 0, "jnp 0x%04x", 0, "cnp 0x%04x", "push hl", "and 0x%02x", 0, "ret p", "jmp (hl)", "jp 0x%04x", 0, "cp 0x%04x", 0, "xor 0x%02x", 0,
+    "ret ns", 0, "jns 0x%04x", 0, "cns 0x%04x", "push af", "or 0x%02x", 0, "ret s", 0, "js 0x%04x", 0, "cs 0x%04x", 0, "cmp 0x%02x", 0,
 };
 
 static print_func print_funcs[256] = 
 { 
     0, print_nn, print, print, print, print, print_n, print, 0, 0, print, 0, print, print, print_n, print,
     0, print_nn, print, print, print, print, print_n, print, 0, 0, print, 0, print, print, print_n, print,
-    0, print_nn, print_nn, print, print, print, 0, print_n, 0, 0, print_nn, 0, print, print, print_n, 0,
+    0, print_nn, print_nn, print, print, print, print_n, print_n, 0, 0, print_nn, 0, print, print, print_n, print,
     0, print_nn, print_nn, print, print, print, print_n, print_n, 0, 0, print_nn, 0, print, print, print_n, 0,
     print, print, print, print, print, print, print, print, print, print, print, print, print, print, print, print,
     print, print, print, print, print, print, print, print, print, print, print, print, print, print, print, print,
@@ -95,10 +95,10 @@ static print_func print_funcs[256] =
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, print, print, print, print, print, print, print, print,
-    print, 0, print_nn, print_nn, 0, print, print_n, 0, print, print, print_nn, 0, 0, print_nn, print_n, 0,
-    print, 0, print_nn, 0, 0, print, print_n, 0, print, 0, print_nn, 0, 0, 0, print_n, 0,
-    print, 0, print_nn, 0, 0, print, print_n, 0, print, print, print_nn, 0, 0, 0, print_n, 0,
-    print, 0, print_nn, 0, 0, print, print_n, 0, print, 0, print_nn, 0, 0, 0, print_n, 0,
+    print, 0, print_nn, print_nn, print_nn, print, print_n, 0, print, print, print_nn, 0, print_nn, print_nn, print_n, 0,
+    print, 0, print_nn, 0, print_nn, print, print_n, 0, print, 0, print_nn, 0, print_nn, 0, print_n, 0,
+    print, 0, print_nn, 0, print_nn, print, print_n, 0, print, print, print_nn, 0, print_nn, 0, print_n, 0,
+    print, 0, print_nn, 0, print_nn, print, print_n, 0, print, 0, print_nn, 0, 0, print_nn, print_n, 0,
 };
 
 int print_insn_i8080(bfd_vma addr, disassemble_info *info)

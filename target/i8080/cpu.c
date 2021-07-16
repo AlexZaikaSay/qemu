@@ -25,7 +25,7 @@
 
 static gchar *i8080_gdb_arch_name(CPUState *cs)
 {
-    return g_strdup("i8080");
+    return g_strdup("z80");
 }
 
 static void i8080_cpu_set_pc(CPUState *cs, vaddr value)
@@ -150,8 +150,9 @@ static void i8080_cpu_class_init(ObjectClass *c, void *data)
 
     cc->gdb_read_register = i8080_cpu_gdb_read_register;
     cc->gdb_write_register = i8080_cpu_gdb_write_register;
-    cc->gdb_num_core_regs = 9;
+    cc->gdb_num_core_regs = 6;
     cc->gdb_arch_name = i8080_gdb_arch_name;
+    cc->gdb_core_xml_file = "i8080.xml";
 
     cc->dump_state = i8080_cpu_dump_state;
     cc->set_pc = i8080_cpu_set_pc;

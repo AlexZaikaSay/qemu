@@ -16,3 +16,14 @@
  */
 #include "qemu/osdep.h"
 #include "cpu.h"
+#include "exec/exec-all.h"
+#include "exec/helper-proto.h"
+
+
+void QEMU_NORETURN helper_debug(CPUI8080State *env)
+{
+    CPUState *cs = env_cpu(env);
+
+    cs->exception_index = EXCP_DEBUG;
+    cpu_loop_exit(cs);
+}

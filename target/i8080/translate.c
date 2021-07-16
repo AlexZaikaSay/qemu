@@ -26,6 +26,9 @@
 #include "exec/log.h"
 #include "qemu/qemu-print.h"
 
+#include "exec/helper-proto.h"
+#include "exec/helper-gen.h"
+
 typedef struct DisasContext {
     DisasContextBase base;
     /* current opcode */
@@ -51,6 +54,11 @@ static TCGv cpu_FLAGS;
 static const char *regnames[] = {
       "bc"  , "de"  , "hl"  , "sp",
     };
+
+static inline void gen_store_16_val(TCGv reg, target_ulong val)
+{
+    tcg_gen_movi_tl(reg, val);
+}
 
 void i8080_cpu_dump_state(CPUState *cs, FILE *f, int flags)
 {
@@ -90,21 +98,21 @@ static void i8080_tr_insn_start(DisasContextBase *dcbase, CPUState *cpu)
     tcg_gen_insn_start(ctx->base.pc_next);
 }
 
+static void gen_debug_insn(DisasContext *s, uint32_t pc, int excp)
+{
+    gen_store_16_val(cpu_PC, pc);
+    gen_helper_debug(cpu_env);
+    s->base.is_jmp = DISAS_NORETURN;
+}
+
 static bool i8080_tr_breakpoint_check(DisasContextBase *dcbase, CPUState *cpu,
                                       const CPUBreakpoint *bp)
 {
-    return false;
-}
-
-static bool is_1_byte_inst(uint32_t ins)
-{
-    // TODO: not inmplemented
+    DisasContext *dc = container_of(dcbase, DisasContext, base);
+    gen_debug_insn(dc, dc->base.pc_next, EXCP_DEBUG);
+    dc->base.pc_next += 2;
+    dc->base.is_jmp = DISAS_NORETURN;
     return true;
-}
-
-static inline void gen_store_16_val(TCGv reg, target_ulong val)
-{
-    tcg_gen_movi_tl(reg, val);
 }
 
 static inline void gen_store_8_val(uint32_t regnum, TCGv src)
@@ -129,25 +137,25 @@ static void gen_cond(DisasContext *ctx, uint32_t cond, TCGLabel *label)
 {
     switch(cond) {
     case COND_NZ:
-        tcg_gen_brcondi_i32(TCG_COND_NE, cpu_FLAGS, Z_FLAG, label);
-        break;
-    case COND_Z:
         tcg_gen_brcondi_i32(TCG_COND_EQ, cpu_FLAGS, Z_FLAG, label);
         break;
-    case COND_NC:
-        tcg_gen_brcondi_i32(TCG_COND_NE, cpu_FLAGS, C_FLAG, label);
+    case COND_Z:
+        tcg_gen_brcondi_i32(TCG_COND_NE, cpu_FLAGS, Z_FLAG, label);
         break;
-    case COND_C:
+    case COND_NC:
         tcg_gen_brcondi_i32(TCG_COND_EQ, cpu_FLAGS, C_FLAG, label);
         break;
-    case COND_PO:
-        tcg_gen_brcondi_i32(TCG_COND_NE, cpu_FLAGS, P_FLAG, label);
+    case COND_C:
+        tcg_gen_brcondi_i32(TCG_COND_NE, cpu_FLAGS, C_FLAG, label);
         break;
-    case COND_PE:
+    case COND_PO:
         tcg_gen_brcondi_i32(TCG_COND_EQ, cpu_FLAGS, P_FLAG, label);
         break;
+    case COND_PE:
+        tcg_gen_brcondi_i32(TCG_COND_NE, cpu_FLAGS, P_FLAG, label);
+        break;
     case COND_P:
-        tcg_gen_brcondi_i32(TCG_COND_NE, cpu_FLAGS, S_FLAG, label);
+        tcg_gen_brcondi_i32(TCG_COND_EQ, cpu_FLAGS, S_FLAG, label);
         break;
     case COND_M:
         tcg_gen_brcondi_i32(TCG_COND_NE, cpu_FLAGS, S_FLAG, label);
@@ -217,18 +225,23 @@ static void gen_jcc(DisasContext *ctx, uint32_t abs)
 {
     uint32_t cond = MASK_OP_COND(ctx->opcode);
     TCGLabel *label = gen_new_label();
-    
+
     gen_cond(ctx, cond, label);
-    gen_goto_tb(ctx, 0, ctx->pc_succ_insn);
+    gen_goto_tb(ctx, 0, abs);
     gen_set_label(label);
-    gen_goto_tb(ctx, 1, abs);
+    gen_goto_tb(ctx, 1, ctx->pc_succ_insn);
 }
 
 static void gen_ccc(DisasContext *ctx, uint32_t abs)
 {
-    // TODO: not implemented
-    qemu_log("gen_ccc not implemented\n");
-    abort();
+    uint32_t cond = MASK_OP_COND(ctx->opcode);
+    TCGLabel *label = gen_new_label();
+    gen_cond(ctx, cond, label);
+    gen_goto_tb(ctx, 0, ctx->pc_succ_insn);
+    gen_set_label(label);
+    tcg_gen_movi_tl(ctx->T0, ctx->pc_succ_insn);
+    gen_push(ctx->T0);
+    gen_goto_tb(ctx, 1, abs);
 }
 
 static void gen_rcc(DisasContext *ctx)
@@ -520,6 +533,11 @@ static void decode_push_a_flags(DisasContext *ctx)
     gen_push(ctx->T0);
 }
 
+static void decode_not(DisasContext *ctx)
+{
+    tcg_gen_not_tl(cpu_A, cpu_A);
+}
+
 static void decode_rol(DisasContext *ctx)
 {
     /* shift left */
@@ -676,6 +694,10 @@ static void translate_1_byte_insn(DisasContext *ctx, CPUI8080State *env)
         ctx->pc_succ_insn = ctx->base.pc_next + 3;
         decode_mov_16_imm(ctx, insn);
         break;
+    case OPC_NOT_A:
+        ctx->pc_succ_insn = ctx->base.pc_next + 1;
+        decode_not(ctx);
+        break;
     case OPC_ROL:
         ctx->pc_succ_insn = ctx->base.pc_next + 1;
         decode_rol(ctx);
@@ -765,6 +787,14 @@ static void translate_1_byte_insn(DisasContext *ctx, CPUI8080State *env)
         ctx->pc_succ_insn = ctx->base.pc_next + 1;
         decode_jmp_hl(ctx);
         break;
+    case OPC_CALL_NZ_IMM:
+    case OPC_CALL_Z_IMM:
+    case OPC_CALL_NC_IMM:
+    case OPC_CALL_C_IMM:
+    case OPC_CALL_PO_IMM:
+    case OPC_CALL_PE_IMM:
+    case OPC_CALL_P_IMM:
+    case OPC_CALL_M_IMM:
     case OPC_CALL_IMM:
         insn = cpu_lduw_code(env, ctx->base.pc_next + 1);
         ctx->pc_succ_insn = ctx->base.pc_next + 3;
@@ -826,16 +856,9 @@ static void i8080_tr_translate_insn(DisasContextBase *dcbase, CPUState *cpu)
 {
     DisasContext *ctx = container_of(dcbase, DisasContext, base);
     CPUI8080State *env = cpu->env_ptr;
-    uint32_t ins = cpu_ldub_code(env, ctx->base.pc_next);
-    if (is_1_byte_inst(ins)) {
-        ctx->opcode = ins;
-        translate_1_byte_insn(ctx, env);
-    } else {
-        // TODO: not implemented
-        qemu_log("translate_2_byte_insn is not implemented\n");
-    }
+    ctx->opcode = cpu_ldub_code(env, ctx->base.pc_next);
+    translate_1_byte_insn(ctx, env);
     ctx->base.pc_next = ctx->pc_succ_insn;
-
 }
 
 static void i8080_tr_tb_stop(DisasContextBase *dcbase, CPUState *cpu)
