@@ -71,7 +71,6 @@ enum {
     DEF_FLAGS   = 0x02, 
 };
 
-#define MASK_OP_COND(opcode)                 (MASK_COND(opcode >> 2))
 #define GET_FLAG(flags, off)                 ((flags >> off) & 0x01)
 
 #define GET_C_FLAG(flags)                    GET_FLAG(flags, C_FLAG)

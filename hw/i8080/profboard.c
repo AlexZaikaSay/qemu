@@ -80,21 +80,20 @@ static void profboard_vga_init(Object *obj)
 
 static void vga_refresh(void *opaque)
 {
-    int x, y, b, c;
+    int x, y;
     ProfBoardVGAState *s = opaque;
     DisplaySurface *surface = qemu_console_surface(s->con);
     uint8_t *ptr = memory_region_get_ram_ptr(&s->iomem);
     uint32_t *screen = surface_data(surface);
 
-    int counter = 0;
-
     for (y = 0; y < 256; y++) {
-        for (x = 0; x < 48; x++) {
-            uint8_t data = ptr[counter++];
-            for (b = 0; b < 8; ++b) {
-                c = (data >> ( b)) & 0x01;
-                screen[b + x * 8 + y * 384] = c ? 0xffffff : 0x0000f0;
-            }
+        for (x = 0; x < 384; x++) {
+            // TODO: optimize it infuture
+            uint8_t data = ptr[((x / 8) << 8) + y];
+            uint8_t r = (x % 8);
+            uint8_t mask = 1 << (7 - r);
+            uint8_t c = data & mask;
+            screen[x + y * 384] = c ? 0xffffff : 0x0000f0;
         }
     }
     dpy_gfx_update(s->con, 0, 0, 384, 256);

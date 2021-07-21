@@ -137,28 +137,36 @@ static void gen_cond(DisasContext *ctx, uint32_t cond, TCGLabel *label)
 {
     switch(cond) {
     case COND_NZ:
-        tcg_gen_brcondi_i32(TCG_COND_EQ, cpu_FLAGS, Z_FLAG, label);
+        tcg_gen_andi_tl(ctx->T0, cpu_FLAGS, Z_MASK);
+        tcg_gen_brcondi_i32(TCG_COND_NE, ctx->T0, Z_MASK, label);
         break;
     case COND_Z:
-        tcg_gen_brcondi_i32(TCG_COND_NE, cpu_FLAGS, Z_FLAG, label);
+        tcg_gen_andi_tl(ctx->T0, cpu_FLAGS, Z_MASK);
+        tcg_gen_brcondi_i32(TCG_COND_EQ, ctx->T0, Z_MASK, label);
         break;
     case COND_NC:
-        tcg_gen_brcondi_i32(TCG_COND_EQ, cpu_FLAGS, C_FLAG, label);
+        tcg_gen_andi_tl(ctx->T0, cpu_FLAGS, C_MASK);
+        tcg_gen_brcondi_i32(TCG_COND_NE, ctx->T0, C_MASK, label);
         break;
     case COND_C:
-        tcg_gen_brcondi_i32(TCG_COND_NE, cpu_FLAGS, C_FLAG, label);
+        tcg_gen_andi_tl(ctx->T0, cpu_FLAGS, C_MASK);
+        tcg_gen_brcondi_i32(TCG_COND_EQ, ctx->T0, C_MASK, label);
         break;
     case COND_PO:
-        tcg_gen_brcondi_i32(TCG_COND_EQ, cpu_FLAGS, P_FLAG, label);
+        tcg_gen_andi_tl(ctx->T0, cpu_FLAGS, P_MASK);
+        tcg_gen_brcondi_i32(TCG_COND_NE, ctx->T0, P_MASK, label);
         break;
     case COND_PE:
-        tcg_gen_brcondi_i32(TCG_COND_NE, cpu_FLAGS, P_FLAG, label);
+        tcg_gen_andi_tl(ctx->T0, cpu_FLAGS, P_MASK);
+        tcg_gen_brcondi_i32(TCG_COND_EQ, ctx->T0, P_MASK, label);
         break;
     case COND_P:
-        tcg_gen_brcondi_i32(TCG_COND_EQ, cpu_FLAGS, S_FLAG, label);
+        tcg_gen_andi_tl(ctx->T0, cpu_FLAGS, S_MASK);
+        tcg_gen_brcondi_i32(TCG_COND_NE, ctx->T0, S_MASK, label);
         break;
     case COND_M:
-        tcg_gen_brcondi_i32(TCG_COND_NE, cpu_FLAGS, S_FLAG, label);
+        tcg_gen_andi_tl(ctx->T0, cpu_FLAGS, S_MASK);
+        tcg_gen_brcondi_i32(TCG_COND_EQ, ctx->T0, S_MASK, label);
         break;
     }
 }
@@ -227,9 +235,9 @@ static void gen_jcc(DisasContext *ctx, uint32_t abs)
     TCGLabel *label = gen_new_label();
 
     gen_cond(ctx, cond, label);
-    gen_goto_tb(ctx, 0, abs);
+    gen_goto_tb(ctx, 0, ctx->pc_succ_insn);
     gen_set_label(label);
-    gen_goto_tb(ctx, 1, ctx->pc_succ_insn);
+    gen_goto_tb(ctx, 1, abs);
 }
 
 static void gen_ccc(DisasContext *ctx, uint32_t abs)
@@ -294,6 +302,18 @@ static void decode_mov_16_imm(DisasContext *ctx, uint32_t val)
     gen_store_16_val(cpu_REGS[MASK_OP_16_REG(ctx->opcode)], val);
 }
 
+static void decode_mov_sp_hl(DisasContext *ctx)
+{
+    tcg_gen_mov_tl(cpu_REGS[REG_SP], cpu_REGS[REG_HL]);
+}
+
+static void decode_xchg_hl_de(DisasContext *ctx)
+{
+    tcg_gen_mov_tl(ctx->T0, cpu_REGS[REG_HL]);
+    tcg_gen_mov_tl(cpu_REGS[REG_HL], cpu_REGS[REG_DE]);
+    tcg_gen_mov_tl(cpu_REGS[REG_DE], ctx->T0);
+}
+
 static void decode_inc_16_r(DisasContext *ctx)
 {
     TCGv dest = cpu_REGS[MASK_OP_16_REG(ctx->opcode)];
@@ -306,6 +326,18 @@ static void decode_dec_16_r(DisasContext *ctx)
     TCGv dest = cpu_REGS[MASK_OP_16_REG(ctx->opcode)];
     tcg_gen_subi_tl(dest, dest, 1);
     tcg_gen_andi_tl(dest, dest, 0xffff);
+}
+
+static void decode_add_16_r(DisasContext *ctx)
+{
+    TCGv src = cpu_REGS[MASK_OP_16_REG(ctx->opcode)];
+    tcg_gen_add_tl(cpu_REGS[REG_HL], cpu_REGS[REG_HL], src);
+
+    /* copy carry bit to carry flag */
+    tcg_gen_extract_tl(ctx->T0, cpu_REGS[REG_HL], 16, 1);
+    tcg_gen_deposit_tl(cpu_FLAGS, cpu_FLAGS, ctx->T0, C_FLAG, 1);
+    /* fit to 8-bit */
+    tcg_gen_andi_tl(cpu_REGS[REG_HL], cpu_REGS[REG_HL], 0xffff);
 }
 
 static void gen_load_temp(DisasContext *ctx, uint32_t regnum)
@@ -476,13 +508,6 @@ static void decode_cmp(DisasContext *ctx)
     gen_zspc_flags(ctx->T0);
 }
 
-static void decode_cmp_r(DisasContext *ctx)
-{
-    uint32_t reg = MASK_8_REG(ctx->opcode);
-    gen_load_temp(ctx, reg);
-    decode_cmp(ctx);
-}
-
 static void decode_op(DisasContext *ctx)
 {
     uint32_t operation =  MASK_OP_ARITH(ctx->opcode);
@@ -520,6 +545,13 @@ static void decode_op_imm(DisasContext *ctx, uint32_t imm)
     decode_op(ctx);
 }
 
+static void decode_op_r(DisasContext *ctx)
+{
+    uint32_t reg = MASK_8_REG(ctx->opcode);
+    gen_load_temp(ctx, reg);
+    decode_op(ctx);
+}
+
 static void decode_push_16_r(DisasContext *ctx)
 {
     TCGv dest = cpu_REGS[MASK_OP_16_REG(ctx->opcode)];
@@ -531,6 +563,20 @@ static void decode_push_a_flags(DisasContext *ctx)
     tcg_gen_mov_tl(ctx->T0, cpu_FLAGS);
     tcg_gen_deposit_tl(ctx->T0, ctx->T0, cpu_A, 8, 8);
     gen_push(ctx->T0);
+}
+
+static void decode_pop_16_r(DisasContext *ctx)
+{
+    TCGv dest = cpu_REGS[MASK_OP_16_REG(ctx->opcode)];
+    gen_pop(dest);
+}
+
+static void decode_pop_a_flags(DisasContext *ctx)
+{
+    gen_pop(ctx->T0);
+    tcg_gen_mov_tl(cpu_FLAGS, ctx->T0);
+    tcg_gen_andi_tl(cpu_FLAGS, cpu_FLAGS, 0xff);
+    tcg_gen_extract_tl(cpu_A, ctx->T0, 8, 8);
 }
 
 static void decode_not(DisasContext *ctx)
@@ -574,6 +620,7 @@ static void decode_rlc(DisasContext *ctx)
     tcg_gen_deposit_tl(cpu_FLAGS, cpu_FLAGS, ctx->T0, C_FLAG, 1);
     /* clear to 8 bit */
     tcg_gen_andi_tl(cpu_A, cpu_A, 0xff);
+
 }
 
 static void decode_rrc(DisasContext *ctx)
@@ -592,6 +639,9 @@ static void translate_1_byte_insn(DisasContext *ctx, CPUI8080State *env)
 {
     uint32_t insn; 
     switch(ctx->opcode) {
+    case OPC_NOP:
+        ctx->pc_succ_insn = ctx->base.pc_next + 1;
+        break;
     case OPC_MOV_B_B:
     case OPC_MOV_B_C:
     case OPC_MOV_B_D:
@@ -714,6 +764,14 @@ static void translate_1_byte_insn(DisasContext *ctx, CPUI8080State *env)
         ctx->pc_succ_insn = ctx->base.pc_next + 1;
         decode_rrc(ctx);
         break;
+    case OPC_MOV_SP_HL:
+        ctx->pc_succ_insn = ctx->base.pc_next + 1;
+        decode_mov_sp_hl(ctx);
+        break;
+    case OPC_XCHG_HL_DE:
+        ctx->pc_succ_insn = ctx->base.pc_next + 1;
+        decode_xchg_hl_de(ctx);
+        break;
     case OPC_INC_BC:
     case OPC_INC_DE:
     case OPC_INC_HL:
@@ -727,6 +785,13 @@ static void translate_1_byte_insn(DisasContext *ctx, CPUI8080State *env)
     case OPC_DEC_SP:
         ctx->pc_succ_insn = ctx->base.pc_next + 1;
         decode_dec_16_r(ctx);
+        break;
+    case OPC_ADD_HL_BC:
+    case OPC_ADD_HL_DE:
+    case OPC_ADD_HL_HL:
+    case OPC_ADD_HL_SP:
+        ctx->pc_succ_insn = ctx->base.pc_next + 1;
+        decode_add_16_r(ctx);
         break;
     case OPC_INC_B:
     case OPC_INC_C:
@@ -812,16 +877,72 @@ static void translate_1_byte_insn(DisasContext *ctx, CPUI8080State *env)
         ctx->pc_succ_insn = ctx->base.pc_next + 1;
         decode_ret(ctx);
         break;
+    case OPC_ADD_B:
+    case OPC_ADD_C:
+    case OPC_ADD_D:
+    case OPC_ADD_E:
+    case OPC_ADD_H:
+    case OPC_ADD_L:
+    case OPC_ADD_HL_REF:
+    case OPC_ADD_A:
+    case OPC_ADC_B:
+    case OPC_ADC_C:
+    case OPC_ADC_D:
+    case OPC_ADC_E:
+    case OPC_ADC_H:
+    case OPC_ADC_L:
+    case OPC_ADC_HL_REF:
+    case OPC_ADC_A:
+    case OPC_SUB_B:
+    case OPC_SUB_C:
+    case OPC_SUB_D:
+    case OPC_SUB_E:
+    case OPC_SUB_H:
+    case OPC_SUB_L:
+    case OPC_SUB_HL_REF:
+    case OPC_SUB_A:
+    case OPC_SBC_B:
+    case OPC_SBC_C:
+    case OPC_SBC_D:
+    case OPC_SBC_E:
+    case OPC_SBC_H:
+    case OPC_SBC_L:
+    case OPC_SBC_HL_REF:
+    case OPC_SBC_A:
+    case OPC_AND_B:
+    case OPC_AND_C:
+    case OPC_AND_D:
+    case OPC_AND_E:
+    case OPC_AND_H:
+    case OPC_AND_L:
+    case OPC_AND_HL_REF:
+    case OPC_AND_A:
+    case OPC_XOR_B:
+    case OPC_XOR_C:
+    case OPC_XOR_D:
+    case OPC_XOR_E:
+    case OPC_XOR_H:
+    case OPC_XOR_L:
+    case OPC_XOR_HL_REF:
+    case OPC_XOR_A:
+    case OPC_OR_B:
+    case OPC_OR_C:
+    case OPC_OR_D:
+    case OPC_OR_E:
+    case OPC_OR_H:
+    case OPC_OR_L:
+    case OPC_OR_HL_REF:
+    case OPC_OR_A:
     case OPC_CMP_B:
     case OPC_CMP_C:
     case OPC_CMP_D:
     case OPC_CMP_E:
     case OPC_CMP_H:
     case OPC_CMP_L:
-    case OPC_CMP_HL_REH:
+    case OPC_CMP_HL_REF:
     case OPC_CMP_A:
         ctx->pc_succ_insn = ctx->base.pc_next + 1;
-        decode_cmp_r(ctx);
+        decode_op_r(ctx);
         break;
     case OPC_ADD_IMM:
     case OPC_ADC_IMM:
@@ -844,6 +965,16 @@ static void translate_1_byte_insn(DisasContext *ctx, CPUI8080State *env)
     case OPC_PUSH_A_FLAGS:
         ctx->pc_succ_insn = ctx->base.pc_next + 1;
         decode_push_a_flags(ctx);
+        break;
+    case OPC_POP_BC:
+    case OPC_POP_DE:
+    case OPC_POP_HL:
+        ctx->pc_succ_insn = ctx->base.pc_next + 1;
+        decode_pop_16_r(ctx);
+        break;
+    case OPC_POP_A_FLAGS:
+        ctx->pc_succ_insn = ctx->base.pc_next + 1;
+        decode_pop_a_flags(ctx);
         break;
     default:
         qemu_log("undefined instruction pc = 0x%04x, op code = 0x%02x, "
