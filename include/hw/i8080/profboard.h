@@ -35,6 +35,9 @@ DECLARE_OBJ_CHECKERS(ProfBoardMachineState, ProfBoardMachineClass,
 #define TYPE_PROFBOARD_VGA "prof_vga"
 OBJECT_DECLARE_SIMPLE_TYPE(ProfBoardVGAState, PROFBOARD_VGA)
 
+#define TYPE_PROFBOARD_I8255 "prof_i8255"
+OBJECT_DECLARE_SIMPLE_TYPE(ProfBoardI8255State, PROFBOARD_I8255)
+
 struct ProfBoardMachineState {
     MachineState parent;
 };
@@ -51,7 +54,49 @@ struct ProfBoardVGAState {
     SysBusDevice parent_obj;
     /*< public >*/
 
-    MemoryRegion iomem;
+    MemoryRegion video_mem;
     QemuConsole *con;
-    uint8_t video_ram[0];
+};
+
+enum I8255Mode
+{
+    BSR_MODE    = 0x00,
+    IO_MODE     = 0x80,
+};
+
+enum I8255ModeIO
+{
+    GROUP_A_MODE_SELECTION_0     = 0x00,
+    GROUP_A_MODE_SELECTION_1     = 0x20,
+    GROUP_A_MODE_SELECTION_2     = 0x40, /* or 0x60 */
+    GROUP_A_MODE_SELECTION_ALL   = 0x60, 
+    GROUP_A_DIR_OUTPUT           = 0x00,
+    GROUP_A_DIR_INPUT            = 0x10,
+    GROUP_B_MODE_SELECTION_0     = 0x00,
+    GROUP_B_MODE_SELECTION_1     = 0x04,
+    GROUP_B_DIR_OUTPUT           = 0x00,
+    GROUP_B_DIR_INPUT            = 0x02,
+    GROUP_C_UP_DIR_OUTPUT        = 0x00,
+    GROUP_C_UP_DIR_INPUT         = 0x08,
+    GROUP_C_LO_DIR_OUTPUT        = 0x00,
+    GROUP_C_LO_DIR_INPUT         = 0x01,
+};
+
+#define MODE_MASK(val) (val & 0x80) 
+#define IO_MODE_SET(val, mode) ((val & mode))
+
+struct ProfBoardI8255State {
+    /*< private >*/
+    SysBusDevice parent_obj;
+    /*< public >*/
+
+    MemoryRegion regs;
+
+    uint8_t mode;
+    uint8_t group_a_mode;
+    uint8_t group_b_mode;
+    uint8_t group_a_dir;
+    uint8_t group_b_dir;
+    uint8_t group_c_up_dir;
+    uint8_t group_c_lo_dir;
 };
